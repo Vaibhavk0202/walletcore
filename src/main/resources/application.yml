@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: ledger
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ledger
+    username: ledger
+    password: ledger
+  jpa:
+    open-in-view: false          # no lazy DB calls while rendering responses
+    hibernate:
+      ddl-auto: validate         # Flyway creates tables; Hibernate only checks them
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      acks: all                  # wait for the broker to persist the event
+      properties:
+        enable.idempotence: true # no duplicate sends from producer retries
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always       # shows db, redis status; fine locally
+
+server:
+  port: 8080

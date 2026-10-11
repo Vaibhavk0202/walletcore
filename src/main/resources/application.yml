@@ -5,6 +5,14 @@ spring:
     url: jdbc:postgresql://localhost:5432/ledger
     username: ledger
     password: ledger
+    spring:
+      datasource:
+        url: jdbc:postgresql://localhost:5432/ledger
+        username: ledger
+        password: ledger
+        hikari:
+          maximum-pool-size: 20
+          connection-timeout: 5000
   jpa:
     open-in-view: false          # no lazy DB calls while rendering responses
     hibernate:

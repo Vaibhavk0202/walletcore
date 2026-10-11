@@ -1,5 +1,7 @@
 package com.vaibhav.ledger.ledger;
 
+import java.util.HashMap;
+import java.util.Map;
 import com.vaibhav.ledger.account.Account;
 import com.vaibhav.ledger.account.AccountRepository;
 import com.vaibhav.ledger.common.ApiException;
@@ -28,12 +30,11 @@ public class LedgerService {
     public LedgerTransaction post(TransactionType type, String description, List<Posting> postings) {
         validateShape(postings);
 
-        // Check every rule before writing anything.
-        // Phase 2 adds SELECT ... FOR UPDATE here so concurrent transfers cannot read stale balances.
+        // Lock first, then check every rule, then write.
+        Map<UUID, Account> locked = lockAccounts(postings);
         String currency = null;
         for (Posting posting : postings) {
-            Account account = accounts.findById(posting.accountId())
-                    .orElseThrow(() -> ApiException.notFound("Account not found: " + posting.accountId()));
+            Account account = locked.get(posting.accountId());
             if (!"ACTIVE".equals(account.status())) {
                 throw ApiException.unprocessable("Account is not active: " + account.id());
             }
@@ -56,6 +57,22 @@ public class LedgerService {
             entries.add(ledger.insertEntry(transactionId, posting, balanceAfter));
         }
         return new LedgerTransaction(transactionId, type, "POSTED", description, entries);
+    }
+
+    /**
+     * Locks every account in this transaction, always in ascending id order.
+     * Because every transaction takes its locks in the same order, two transactions can never
+     * each hold one lock while waiting for the other's, so they cannot deadlock.
+     */
+    private Map<UUID, Account> lockAccounts(List<Posting> postings) {
+        List<UUID> ids = postings.stream().map(Posting::accountId).distinct().sorted().toList();
+        Map<UUID, Account> locked = new HashMap<>();
+        for (UUID id : ids) {
+            Account account = accounts.findByIdForUpdate(id)
+                    .orElseThrow(() -> ApiException.notFound("Account not found: " + id));
+            locked.put(id, account);
+        }
+        return locked;
     }
 
     private static void validateShape(List<Posting> postings) {

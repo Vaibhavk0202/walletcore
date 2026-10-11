@@ -5,6 +5,7 @@ import java.util.Map;
 import com.vaibhav.ledger.account.Account;
 import com.vaibhav.ledger.account.AccountRepository;
 import com.vaibhav.ledger.common.ApiException;
+import com.vaibhav.ledger.outbox.Outbox;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -20,10 +21,12 @@ public class LedgerService {
 
     private final LedgerRepository ledger;
     private final AccountRepository accounts;
+    private final Outbox outbox;
 
-    public LedgerService(LedgerRepository ledger, AccountRepository accounts) {
+    public LedgerService(LedgerRepository ledger, AccountRepository accounts, Outbox outbox) {
         this.ledger = ledger;
         this.accounts = accounts;
+        this.outbox = outbox;
     }
 
     @Transactional
@@ -56,7 +59,11 @@ public class LedgerService {
             long balanceAfter = accounts.applyDelta(posting.accountId(), posting.direction().signed(posting.amount()));
             entries.add(ledger.insertEntry(transactionId, posting, balanceAfter));
         }
-        return new LedgerTransaction(transactionId, type, "POSTED", description, entries);
+
+        LedgerTransaction posted = new LedgerTransaction(transactionId, type, "POSTED", description, entries);
+        // Same transaction as the ledger writes: the event exists if and only if the money moved.
+        outbox.record("LedgerTransaction", transactionId, "TransactionPosted", posted);
+        return posted;
     }
 
     /**

@@ -36,6 +36,17 @@ public class AccountRepository {
                 .optional();
     }
 
+    /**
+     * Reads the account and locks its row until the current transaction commits or rolls back.
+     * Any other transaction that asks for the same lock waits here.
+     */
+    public Optional<Account> findByIdForUpdate(UUID id) {
+        return jdbc.sql("SELECT * FROM accounts WHERE id = :id FOR UPDATE")
+                .param("id", id)
+                .query(AccountRepository::mapRow)
+                .optional();
+    }
+
     /** Adds delta to the cached balance and returns the new balance. */
     public long applyDelta(UUID id, long delta) {
         return jdbc.sql("""
